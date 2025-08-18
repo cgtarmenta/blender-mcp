@@ -982,7 +982,7 @@ def cad_add_line2d(ctx: Context, sketch_i: int = -1, x1: float = 0.0, y1: float 
         logger.error(f"Error adding line2d: {str(e)}")
         return f"Error adding line2d: {str(e)}"
 @mcp.tool()
-def cad_solve(ctx: Context) -> str:
+def cad_solve(ctx: Context) -> str:
     try:
         blender = get_blender_connection()
         result = blender.send_command("cad_solve")
@@ -993,7 +993,7 @@ def cad_solve(ctx: Context) -> str:
 
 # Non-modal CAD tools (data API attempts)
 @mcp.tool()
-def cad_nm_state(ctx: Context) -> str:
+def cad_nm_state(ctx: Context) -> str:
     try:
         blender = get_blender_connection()
         result = blender.send_command("cad_nm_state")
@@ -1001,9 +1001,8 @@ def cad_nm_state(ctx: Context) -> str:
     except Exception as e:
         logger.error(f"Error getting non-modal CAD state: {str(e)}")
         return f"Error getting non-modal CAD state: {str(e)}"
-
 @mcp.tool()
-def cad_nm_add_point2d(ctx: Context, sketch_i: int = -1, x: float = 0.0, y: float = 0.0) -> str:
+def cad_nm_add_point2d(ctx: Context, sketch_i: int = -1, x: float = 0.0, y: float = 0.0) -> str:
     try:
         blender = get_blender_connection()
         payload = {"sketch_i": sketch_i, "x": x, "y": y}
@@ -1012,9 +1011,9 @@ def cad_nm_add_point2d(ctx: Context, sketch_i: int = -1, x: float = 0.0, y: floa
     except Exception as e:
         logger.error(f"Error in cad_nm_add_point2d: {str(e)}")
         return f"Error in cad_nm_add_point2d: {str(e)}"
-
+        return f"Error in cad_nm_add_point2d: {str(e)}"
 @mcp.tool()
-def cad_nm_solve(ctx: Context) -> str:
+def cad_nm_solve(ctx: Context) -> str:
     try:
         blender = get_blender_connection()
         result = blender.send_command("cad_nm_solve")
