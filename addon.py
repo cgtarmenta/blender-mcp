@@ -247,6 +247,7 @@ class BlenderMCPServer:
                 # Non-modal attempts using CAD Sketcher data API
                 "cad_nm_state": self.cad_nm_state,
                 "cad_nm_add_point2d": self.cad_nm_add_point2d,
+                "cad_nm_add_line2d": self.cad_nm_add_line2d,
                 "cad_nm_solve": self.cad_nm_solve,
             }
             handlers.update(cad_handlers)
@@ -576,20 +577,66 @@ class BlenderMCPServer:
             entities = getattr(sk, "entities", None)
             if entities is None:
                 return {"success": False, "error": "CAD Sketcher entities API not available"}
-            # Try common signature seen in traces
+            
+            # Try different signature patterns
+            # Pattern 1: co parameter (common in Blender)
             try:
-                target = entities.add_point_2d(sketch=sketch_i, coordinates=(float(x), float(y)))
-                # Some APIs might return None but still mutate state
+                target = entities.add_point_2d(sketch_i, co=(float(x), float(y)))
                 return {"success": True, "result": str(target) if target is not None else "OK"}
-            except TypeError:
-                # Alternate arg names fallback
+            except (TypeError, AttributeError) as e1:
+                # Pattern 2: positional arguments
                 try:
-                    target = entities.add_point_2d(sketch=sketch_i, coord=(float(x), float(y)))
+                    target = entities.add_point_2d(sketch_i, float(x), float(y))
                     return {"success": True, "result": str(target) if target is not None else "OK"}
-                except Exception as e2:
-                    return {"success": False, "error": f"add_point_2d failed: {e2}"}
-            except Exception as e:
-                return {"success": False, "error": f"add_point_2d failed: {e}"}
+                except (TypeError, AttributeError) as e2:
+                    # Pattern 3: sketch as keyword, co as positional
+                    try:
+                        target = entities.add_point_2d(sketch=sketch_i, co=(float(x), float(y)))
+                        return {"success": True, "result": str(target) if target is not None else "OK"}
+                    except (TypeError, AttributeError) as e3:
+                        # Pattern 4: Vector input (requires mathutils)
+                        try:
+                            from mathutils import Vector
+                            target = entities.add_point_2d(sketch_i, Vector((float(x), float(y))))
+                            return {"success": True, "result": str(target) if target is not None else "OK"}
+                        except Exception as e4:
+                            return {"success": False, "error": f"add_point_2d failed after trying all patterns. Last error: {e4}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cad_nm_add_line2d(self, sketch_i: int = -1, x1: float = 0.0, y1: float = 0.0, x2: float = 0.2, y2: float = 0.0):
+        """Add a 2D line using CAD Sketcher's data API, if available (no UI ops)."""
+        try:
+            sk = getattr(bpy.context.scene, "sketcher", None)
+            if sk is None:
+                return {"success": False, "error": "CAD Sketcher not available"}
+            entities = getattr(sk, "entities", None)
+            if entities is None:
+                return {"success": False, "error": "CAD Sketcher entities API not available"}
+            
+            # Try different signature patterns for add_line_2d
+            # Pattern 1: sketch_i and two tuples
+            try:
+                target = entities.add_line_2d(sketch_i, (float(x1), float(y1)), (float(x2), float(y2)))
+                return {"success": True, "result": str(target) if target is not None else "OK"}
+            except (TypeError, AttributeError) as e1:
+                # Pattern 2: sketch_i and four floats
+                try:
+                    target = entities.add_line_2d(sketch_i, float(x1), float(y1), float(x2), float(y2))
+                    return {"success": True, "result": str(target) if target is not None else "OK"}
+                except (TypeError, AttributeError) as e2:
+                    # Pattern 3: using Vector
+                    try:
+                        from mathutils import Vector
+                        target = entities.add_line_2d(sketch_i, Vector((float(x1), float(y1))), Vector((float(x2), float(y2))))
+                        return {"success": True, "result": str(target) if target is not None else "OK"}
+                    except (TypeError, AttributeError) as e3:
+                        # Pattern 4: keyword arguments
+                        try:
+                            target = entities.add_line_2d(sketch=sketch_i, p1=(float(x1), float(y1)), p2=(float(x2), float(y2)))
+                            return {"success": True, "result": str(target) if target is not None else "OK"}
+                        except Exception as e4:
+                            return {"success": False, "error": f"add_line_2d failed after trying all patterns. Last error: {e4}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
