@@ -548,6 +548,38 @@ class BlenderMCPServer:
     # -----------------------------
     # CAD Sketcher non-modal attempts (data API)
     # -----------------------------
+    def _get_sketch_by_index(self, sketch_i):
+        """Helper to get the actual sketch object by index."""
+        try:
+            sk = getattr(bpy.context.scene, "sketcher", None)
+            if not sk:
+                return None
+            
+            # Look for the sketch in entities
+            entities = getattr(sk, "entities", None)
+            if not entities:
+                return None
+                
+            # Check if there's a list of sketches
+            for attr_name in dir(entities):
+                if attr_name.startswith('_'):
+                    continue
+                attr = getattr(entities, attr_name, None)
+                if isinstance(attr, (list, tuple)):
+                    # Look for sketch objects in the list
+                    for item in attr:
+                        if hasattr(item, 'slvs_index') and getattr(item, 'slvs_index', -1) == sketch_i:
+                            return item
+            
+            # If not found, create a minimal sketch reference
+            class SketchRef:
+                def __init__(self, index):
+                    self.slvs_index = index
+            return SketchRef(sketch_i)
+            
+        except Exception:
+            return None
+    
     def cad_nm_state(self):
         try:
             sk = getattr(bpy.context.scene, "sketcher", None)
@@ -578,29 +610,21 @@ class BlenderMCPServer:
             if entities is None:
                 return {"success": False, "error": "CAD Sketcher entities API not available"}
             
-            # Try different signature patterns
-            # Pattern 1: co parameter (common in Blender)
+            # Get the actual sketch object using our helper
+            sketch = self._get_sketch_by_index(sketch_i)
+            if sketch is None:
+                # If no sketch found, create a minimal reference
+                class SketchRef:
+                    def __init__(self, index):
+                        self.slvs_index = index
+                sketch = SketchRef(sketch_i)
+            
+            # The correct signature is: add_point_2d(co: Tuple, sketch: SlvsSketch)
             try:
-                target = entities.add_point_2d(sketch_i, co=(float(x), float(y)))
+                target = entities.add_point_2d((float(x), float(y)), sketch)
                 return {"success": True, "result": str(target) if target is not None else "OK"}
-            except (TypeError, AttributeError) as e1:
-                # Pattern 2: positional arguments
-                try:
-                    target = entities.add_point_2d(sketch_i, float(x), float(y))
-                    return {"success": True, "result": str(target) if target is not None else "OK"}
-                except (TypeError, AttributeError) as e2:
-                    # Pattern 3: sketch as keyword, co as positional
-                    try:
-                        target = entities.add_point_2d(sketch=sketch_i, co=(float(x), float(y)))
-                        return {"success": True, "result": str(target) if target is not None else "OK"}
-                    except (TypeError, AttributeError) as e3:
-                        # Pattern 4: Vector input (requires mathutils)
-                        try:
-                            from mathutils import Vector
-                            target = entities.add_point_2d(sketch_i, Vector((float(x), float(y))))
-                            return {"success": True, "result": str(target) if target is not None else "OK"}
-                        except Exception as e4:
-                            return {"success": False, "error": f"add_point_2d failed after trying all patterns. Last error: {e4}"}
+            except Exception as e:
+                return {"success": False, "error": f"add_point_2d failed: {e}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
