@@ -244,6 +244,10 @@ class BlenderMCPServer:
                 "cad_add_point2d": self.cad_add_point2d,
                 "cad_add_line2d": self.cad_add_line2d,
                 "cad_solve": self.cad_solve,
+                # Non-modal attempts using CAD Sketcher data API
+                "cad_nm_state": self.cad_nm_state,
+                "cad_nm_add_point2d": self.cad_nm_add_point2d,
+                "cad_nm_solve": self.cad_nm_solve,
             }
             handlers.update(cad_handlers)
 
@@ -539,6 +543,72 @@ class BlenderMCPServer:
             return str(bpy.ops.view3d.slvs_solve('EXEC_DEFAULT'))
         except Exception as e:
             return {"error": str(e)}
+
+    # -----------------------------
+    # CAD Sketcher non-modal attempts (data API)
+    # -----------------------------
+    def cad_nm_state(self):
+        try:
+            sk = getattr(bpy.context.scene, "sketcher", None)
+            if sk is None:
+                return {"available": False, "message": "CAD Sketcher not found in this scene"}
+            state = {"available": True}
+            try:
+                groups = getattr(sk, "groups", [])
+                state["groups_count"] = len(groups) if groups is not None else 0
+            except Exception:
+                state["groups_count"] = None
+            try:
+                entities = getattr(sk, "entities", None)
+                state["entities_present"] = entities is not None
+            except Exception:
+                state["entities_present"] = False
+            return state
+        except Exception as e:
+            return {"available": False, "error": str(e)}
+
+    def cad_nm_add_point2d(self, sketch_i: int = -1, x: float = 0.0, y: float = 0.0):
+        """Add a 2D point using CAD Sketcher's data API, if available (no UI ops)."""
+        try:
+            sk = getattr(bpy.context.scene, "sketcher", None)
+            if sk is None:
+                return {"success": False, "error": "CAD Sketcher not available"}
+            entities = getattr(sk, "entities", None)
+            if entities is None:
+                return {"success": False, "error": "CAD Sketcher entities API not available"}
+            # Try common signature seen in traces
+            try:
+                target = entities.add_point_2d(sketch=sketch_i, coordinates=(float(x), float(y)))
+                # Some APIs might return None but still mutate state
+                return {"success": True, "result": str(target) if target is not None else "OK"}
+            except TypeError:
+                # Alternate arg names fallback
+                try:
+                    target = entities.add_point_2d(sketch=sketch_i, coord=(float(x), float(y)))
+                    return {"success": True, "result": str(target) if target is not None else "OK"}
+                except Exception as e2:
+                    return {"success": False, "error": f"add_point_2d failed: {e2}"}
+            except Exception as e:
+                return {"success": False, "error": f"add_point_2d failed: {e}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cad_nm_solve(self):
+        """Attempt to run solver via data API, fallback to operator if needed."""
+        # Try to locate solver on sketcher, fallback to operator
+        try:
+            sk = getattr(bpy.context.scene, "sketcher", None)
+            if sk is not None and hasattr(sk, "solver"):
+                try:
+                    res = sk.solver.solve()
+                    return {"success": True, "result": str(res)}
+                except Exception as e:
+                    # Fallback to operator
+                    pass
+            # Fallback
+            return self.cad_solve()
+        except Exception as e:
+            return {"success": False, "error": str(e)}
     
     
 
