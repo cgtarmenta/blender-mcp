@@ -1011,7 +1011,6 @@ def cad_nm_add_point2d(ctx: Context, sketch_i: int = -1, x: float = 0.0, y: floa
     except Exception as e:
         logger.error(f"Error in cad_nm_add_point2d: {str(e)}")
         return f"Error in cad_nm_add_point2d: {str(e)}"
-        return f"Error in cad_nm_add_point2d: {str(e)}"
 @mcp.tool()
 def cad_nm_solve(ctx: Context) -> str:
     try:
@@ -1021,7 +1020,6 @@ def cad_nm_solve(ctx: Context) -> str:
     except Exception as e:
         logger.error(f"Error in cad_nm_solve: {str(e)}")
         return f"Error in cad_nm_solve: {str(e)}"
-        return f"Error solving sketch: {str(e)}"
 
 # Main execution
 
