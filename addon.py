@@ -232,6 +232,21 @@ class BlenderMCPServer:
             }
             handlers.update(sketchfab_handlers)
 
+        # Add basic CAD Sketcher handlers if CAD Sketcher appears to be available
+        try:
+            has_cad = hasattr(bpy.context.scene, "sketcher")
+        except Exception:
+            has_cad = False
+        if has_cad:
+            cad_handlers = {
+                "cad_state": self.cad_state,
+                "cad_set_active_sketch": self.cad_set_active_sketch,
+                "cad_add_point2d": self.cad_add_point2d,
+                "cad_add_line2d": self.cad_add_line2d,
+                "cad_solve": self.cad_solve,
+            }
+            handlers.update(cad_handlers)
+
         handler = handlers.get(cmd_type)
         if handler:
             try:
@@ -414,6 +429,116 @@ class BlenderMCPServer:
             return {"executed": True, "result": captured_output}
         except Exception as e:
             raise Exception(f"Code execution error: {str(e)}")
+
+    # -----------------------------
+    # CAD Sketcher lightweight APIs
+    # -----------------------------
+    def cad_state(self):
+        """Return a compact snapshot of CAD Sketcher state if available."""
+        try:
+            sk = getattr(bpy.context.scene, "sketcher", None)
+            if sk is None:
+                return {"available": False, "message": "CAD Sketcher not found in this scene"}
+            state = {"available": True}
+            # Best-effort introspection; structures may vary by version
+            try:
+                groups = getattr(sk, "groups", [])
+                state["groups_count"] = len(groups) if groups is not None else 0
+            except Exception:
+                state["groups_count"] = None
+            try:
+                entities = getattr(sk, "entities", None)
+                # Count common entity lists if present
+                if entities is not None:
+                    counts = {}
+                    for name in dir(entities):
+                        if name.startswith("_"):
+                            continue
+                        try:
+                            val = getattr(entities, name)
+                            if isinstance(val, (list, tuple)):
+                                counts[name] = len(val)
+                        except Exception:
+                            continue
+                    state["entities_counts"] = counts
+            except Exception:
+                pass
+            return state
+        except Exception as e:
+            return {"available": False, "error": str(e)}
+
+    def _with_view3d(self):
+        """Yield a temp_override bound to a VIEW_3D/WINDOW region if possible."""
+        win = bpy.context.window
+        scr = bpy.context.screen
+        area = None
+        region = None
+        if scr:
+            for a in scr.areas:
+                if a.type == 'VIEW_3D':
+                    area = a
+                    for r in a.regions:
+                        if r.type == 'WINDOW':
+                            region = r
+                            break
+                    break
+        if win and scr and area and region:
+            return bpy.context.temp_override(window=win, screen=scr, area=area, region=region)
+        return None
+
+    def cad_set_active_sketch(self, index: int = -1):
+        """Set the active sketch using the add-on operator (may depend on UI)."""
+        ctx = self._with_view3d()
+        if ctx:
+            with ctx:
+                return str(bpy.ops.view3d.slvs_set_active_sketch('EXEC_DEFAULT', index=index))
+        return str(bpy.ops.view3d.slvs_set_active_sketch('EXEC_DEFAULT', index=index))
+
+    def cad_add_point2d(self, sketch_i: int = -1, coordinates: list | tuple = None, wait_for_input: bool = False):
+        """Attempt to add a 2D point non-modally. Falls back to operator and returns status string."""
+        kw = {"wait_for_input": bool(wait_for_input)}
+        if sketch_i is not None:
+            kw["sketch_i"] = int(sketch_i)
+        if coordinates is not None:
+            # operator expects 2-length float array named 'coordinates'
+            kw["coordinates"] = (float(coordinates[0]), float(coordinates[1]))
+        ctx = self._with_view3d()
+        try:
+            if ctx:
+                with ctx:
+                    return str(bpy.ops.view3d.slvs_add_point2d('EXEC_DEFAULT', **kw))
+            return str(bpy.ops.view3d.slvs_add_point2d('EXEC_DEFAULT', **kw))
+        except Exception as e:
+            return {"error": str(e), "kwargs": kw}
+
+    def cad_add_line2d(self, sketch_i: int = -1, p1: list | tuple = None, p2: list | tuple = None, wait_for_input: bool = False):
+        """Attempt to add a 2D line non-modally via fallbacks p1_fallback/p2_fallback."""
+        kw = {"wait_for_input": bool(wait_for_input)}
+        if sketch_i is not None:
+            kw["sketch_i"] = int(sketch_i)
+        if p1 is not None:
+            kw["p1_fallback"] = (float(p1[0]), float(p1[1]))
+        if p2 is not None:
+            kw["p2_fallback"] = (float(p2[0]), float(p2[1]))
+        ctx = self._with_view3d()
+        try:
+            if ctx:
+                with ctx:
+                    return str(bpy.ops.view3d.slvs_add_line2d('EXEC_DEFAULT', **kw))
+            return str(bpy.ops.view3d.slvs_add_line2d('EXEC_DEFAULT', **kw))
+        except Exception as e:
+            return {"error": str(e), "kwargs": kw}
+
+    def cad_solve(self):
+        """Run the solver non-modally if possible."""
+        ctx = self._with_view3d()
+        try:
+            if ctx:
+                with ctx:
+                    return str(bpy.ops.view3d.slvs_solve('EXEC_DEFAULT'))
+            return str(bpy.ops.view3d.slvs_solve('EXEC_DEFAULT'))
+        except Exception as e:
+            return {"error": str(e)}
     
     
 

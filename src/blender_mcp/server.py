@@ -648,7 +648,7 @@ def search_sketchfab_models(
         logger.error(f"Error searching Sketchfab models: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
-        return f"Error searching Sketchfab models: {str(e)}"
+return f"Error searching Sketchfab models: {str(e)}"
 
 @mcp.tool()
 def download_sketchfab_model(
@@ -935,6 +935,62 @@ def asset_creation_strategy() -> str:
     - Hyper3D Rodin failed to generate the desired asset
     - The task specifically requires a basic material/color
     """
+
+# -----------------------------
+# CAD Sketcher MCP tools (thin wrappers)
+# -----------------------------
+
+@mcp.tool()
+def cad_state(ctx: Context) -> str:
+    try:
+        blender = get_blender_connection()
+        result = blender.send_command("cad_state")
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        logger.error(f"Error getting CAD state: {str(e)}")
+        return f"Error getting CAD state: {str(e)}"
+
+@mcp.tool()
+def cad_set_active_sketch(ctx: Context, index: int = -1) -> str:
+    try:
+        blender = get_blender_connection()
+        result = blender.send_command("cad_set_active_sketch", {"index": index})
+        return json.dumps({"result": result})
+    except Exception as e:
+        logger.error(f"Error setting active sketch: {str(e)}")
+        return f"Error setting active sketch: {str(e)}"
+
+@mcp.tool()
+def cad_add_point2d(ctx: Context, sketch_i: int = -1, x: float = 0.0, y: float = 0.0, wait_for_input: bool = False) -> str:
+    try:
+        blender = get_blender_connection()
+        payload = {"sketch_i": sketch_i, "coordinates": [x, y], "wait_for_input": wait_for_input}
+        result = blender.send_command("cad_add_point2d", payload)
+        return json.dumps({"result": result})
+    except Exception as e:
+        logger.error(f"Error adding point2d: {str(e)}")
+        return f"Error adding point2d: {str(e)}"
+
+@mcp.tool()
+def cad_add_line2d(ctx: Context, sketch_i: int = -1, x1: float = 0.0, y1: float = 0.0, x2: float = 0.2, y2: float = 0.0, wait_for_input: bool = False) -> str:
+    try:
+        blender = get_blender_connection()
+        payload = {"sketch_i": sketch_i, "p1": [x1, y1], "p2": [x2, y2], "wait_for_input": wait_for_input}
+        result = blender.send_command("cad_add_line2d", payload)
+        return json.dumps({"result": result})
+    except Exception as e:
+        logger.error(f"Error adding line2d: {str(e)}")
+        return f"Error adding line2d: {str(e)}"
+
+@mcp.tool()
+def cad_solve(ctx: Context) -> str:
+    try:
+        blender = get_blender_connection()
+        result = blender.send_command("cad_solve")
+        return json.dumps({"result": result})
+    except Exception as e:
+        logger.error(f"Error solving sketch: {str(e)}")
+        return f"Error solving sketch: {str(e)}"
 
 # Main execution
 
