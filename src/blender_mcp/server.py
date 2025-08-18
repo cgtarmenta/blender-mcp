@@ -648,7 +648,7 @@ def search_sketchfab_models(
         logger.error(f"Error searching Sketchfab models: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
-return f"Error searching Sketchfab models: {str(e)}"
+        return f"Error searching Sketchfab models: {str(e)}"
 
 @mcp.tool()
 def download_sketchfab_model(
