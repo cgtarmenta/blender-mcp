@@ -248,7 +248,10 @@ class BlenderMCPServer:
                 "cad_nm_state": self.cad_nm_state,
                 "cad_nm_add_point2d": self.cad_nm_add_point2d,
                 "cad_nm_add_line2d": self.cad_nm_add_line2d,
+                "cad_nm_add_circle2d": self.cad_nm_add_circle2d,
                 "cad_nm_solve": self.cad_nm_solve,
+                "cad_create_sketch": self.cad_create_sketch,
+                "cad_add_constraint": self.cad_add_constraint,
             }
             handlers.update(cad_handlers)
 
@@ -438,6 +441,148 @@ class BlenderMCPServer:
     # -----------------------------
     # CAD Sketcher lightweight APIs
     # -----------------------------
+    def get_cad_capabilities(self):
+        """Get CAD Sketcher capabilities and version information"""
+        try:
+            # Check if CAD Sketcher addon is enabled
+            addon_enabled = "CAD_Sketcher" in bpy.context.preferences.addons
+            if not addon_enabled:
+                return {
+                    "available": False,
+                    "message": "CAD Sketcher addon is not enabled",
+                    "install_hint": "Install from https://github.com/hlorus/CAD_Sketcher"
+                }
+                
+            # Check for sketcher in scene
+            sk = getattr(bpy.context.scene, "sketcher", None)
+            if sk is None:
+                return {
+                    "available": True,
+                    "addon_enabled": True,
+                    "scene_ready": False,
+                    "message": "CAD Sketcher enabled but not initialized in scene"
+                }
+            
+            # Detect available operators
+            operators_available = {
+                "point2d": hasattr(bpy.ops.view3d, "slvs_add_point2d"),
+                "line2d": hasattr(bpy.ops.view3d, "slvs_add_line2d"),
+                "circle2d": hasattr(bpy.ops.view3d, "slvs_add_circle2d"),
+                "arc2d": hasattr(bpy.ops.view3d, "slvs_add_arc2d"),
+                "solve": hasattr(bpy.ops.view3d, "slvs_solve"),
+            }
+            
+            # Detect entities support
+            entities_supported = []
+            for entity in ["point", "line", "circle", "arc"]:
+                if operators_available.get(f"{entity}2d", False):
+                    entities_supported.append(entity)
+            
+            return {
+                "available": True,
+                "addon_enabled": True,
+                "scene_ready": True,
+                "operators": operators_available,
+                "entities_supported": entities_supported,
+                "constraints_supported": ["coincident", "parallel", "perpendicular"],
+                "features": {
+                    "batch_operations": True,
+                    "sketch_planes": True
+                }
+            }
+        except Exception as e:
+            return {
+                "available": False,
+                "error": str(e)
+            }
+    
+    # -----------------------------
+    # CAD Sketcher state and operations
+    # -----------------------------
+    def get_cad_capabilities(self):
+        """Get CAD Sketcher capabilities and version information"""
+        try:
+            # Check if CAD Sketcher addon is enabled
+            addon_enabled = "CAD_Sketcher" in bpy.context.preferences.addons
+            if not addon_enabled:
+                return {
+                    "available": False,
+                    "message": "CAD Sketcher addon is not enabled",
+                    "install_hint": "Install CAD Sketcher addon from https://github.com/hlorus/CAD_Sketcher"
+                }
+                
+            # Check for sketcher in scene
+            sk = getattr(bpy.context.scene, "sketcher", None)
+            if sk is None:
+                return {
+                    "available": True,
+                    "addon_enabled": True,
+                    "scene_ready": False,
+                    "message": "CAD Sketcher addon is enabled but not initialized in current scene"
+                }
+            
+            # Get addon version
+            addon = bpy.context.preferences.addons.get("CAD_Sketcher")
+            version = "unknown"
+            if addon and hasattr(addon, "bl_info"):
+                version = ".".join(str(v) for v in addon.bl_info.get("version", (0,0,0)))
+            
+            # Detect available operators
+            operators_available = {
+                "add_point2d": hasattr(bpy.ops.view3d, "slvs_add_point2d"),
+                "add_line2d": hasattr(bpy.ops.view3d, "slvs_add_line2d"),
+                "add_circle2d": hasattr(bpy.ops.view3d, "slvs_add_circle2d"),
+                "add_arc2d": hasattr(bpy.ops.view3d, "slvs_add_arc2d"),
+                "add_rectangle": hasattr(bpy.ops.view3d, "slvs_add_rectangle"),
+                "add_constraint": hasattr(bpy.ops.view3d, "slvs_add_constraint"),
+                "solve": hasattr(bpy.ops.view3d, "slvs_solve"),
+                "add_dimension": hasattr(bpy.ops.view3d, "slvs_add_dimension"),
+                "extrude": hasattr(bpy.ops.mesh, "solidify"),  # Fallback check
+            }
+            
+            # Detect available constraint types
+            constraint_types = []
+            if hasattr(bpy.ops.view3d, "slvs_add_constraint"):
+                # Common constraint types in CAD Sketcher
+                constraint_types = [
+                    "coincident", "parallel", "perpendicular", "horizontal", "vertical",
+                    "equal", "tangent", "distance", "angle", "radius", "diameter",
+                    "midpoint", "ratio", "symmetric"
+                ]
+            
+            # Detect entities support
+            entities_supported = []
+            for entity in ["point", "line", "circle", "arc", "rectangle"]:
+                if operators_available.get(f"add_{entity}2d", False):
+                    entities_supported.append(entity)
+            
+            return {
+                "available": True,
+                "addon_enabled": True,
+                "scene_ready": True,
+                "version": version,
+                "operators": operators_available,
+                "entities_supported": entities_supported,
+                "constraints_supported": constraint_types,
+                "dimension_types": ["distance", "angle", "radius", "diameter"],
+                "3d_ops": ["extrude"],  # We'll use fallback for now
+                "modal_supported": True,
+                "expression_engine": False,  # To be detected
+                "unit_systems": ["metric", "imperial"],
+                "features": {
+                    "batch_operations": True,
+                    "parametric_dimensions": True,
+                    "construction_geometry": True,
+                    "sketch_planes": True
+                }
+            }
+        except Exception as e:
+            return {
+                "available": False,
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            }
+    
     def cad_state(self):
         """Return a compact snapshot of CAD Sketcher state if available."""
         try:
@@ -628,8 +773,11 @@ class BlenderMCPServer:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def cad_nm_add_line2d(self, sketch_i: int = -1, x1: float = 0.0, y1: float = 0.0, x2: float = 0.2, y2: float = 0.0):
-        """Add a 2D line using CAD Sketcher's data API, if available (no UI ops)."""
+    def cad_nm_add_line2d(self, sketch_i: int = -1, x1: float = 0.0, y1: float = 0.0, x2: float = 0.2, y2: float = 0.0, 
+                          p1_index: int = None, p2_index: int = None):
+        """Add a 2D line using CAD Sketcher's data API.
+        Can either use existing points (by index) or create new ones (by coordinates).
+        """
         try:
             sk = getattr(bpy.context.scene, "sketcher", None)
             if sk is None:
@@ -638,29 +786,36 @@ class BlenderMCPServer:
             if entities is None:
                 return {"success": False, "error": "CAD Sketcher entities API not available"}
             
-            # Try different signature patterns for add_line_2d
-            # Pattern 1: sketch_i and two tuples
-            try:
-                target = entities.add_line_2d(sketch_i, (float(x1), float(y1)), (float(x2), float(y2)))
-                return {"success": True, "result": str(target) if target is not None else "OK"}
-            except (TypeError, AttributeError) as e1:
-                # Pattern 2: sketch_i and four floats
-                try:
-                    target = entities.add_line_2d(sketch_i, float(x1), float(y1), float(x2), float(y2))
-                    return {"success": True, "result": str(target) if target is not None else "OK"}
-                except (TypeError, AttributeError) as e2:
-                    # Pattern 3: using Vector
-                    try:
-                        from mathutils import Vector
-                        target = entities.add_line_2d(sketch_i, Vector((float(x1), float(y1))), Vector((float(x2), float(y2))))
-                        return {"success": True, "result": str(target) if target is not None else "OK"}
-                    except (TypeError, AttributeError) as e3:
-                        # Pattern 4: keyword arguments
-                        try:
-                            target = entities.add_line_2d(sketch=sketch_i, p1=(float(x1), float(y1)), p2=(float(x2), float(y2)))
-                            return {"success": True, "result": str(target) if target is not None else "OK"}
-                        except Exception as e4:
-                            return {"success": False, "error": f"add_line_2d failed after trying all patterns. Last error: {e4}"}
+            # Get the sketch reference
+            sketch = self._get_sketch_by_index(sketch_i)
+            if sketch is None:
+                class SketchRef:
+                    def __init__(self, index):
+                        self.slvs_index = index
+                sketch = SketchRef(sketch_i)
+            
+            # Get or create points
+            if p1_index is not None and p2_index is not None:
+                # Use existing points by index
+                if hasattr(entities, 'points2D'):
+                    p1 = entities.points2D[p1_index]
+                    p2 = entities.points2D[p2_index]
+                else:
+                    return {"success": False, "error": "No points2D collection found"}
+            else:
+                # Create new points
+                p1 = entities.add_point_2d((float(x1), float(y1)), sketch)
+                p2 = entities.add_point_2d((float(x2), float(y2)), sketch)
+            
+            # Create the line
+            line = entities.add_line_2d(p1, p2, sketch)
+            
+            return {
+                "success": True, 
+                "result": str(line),
+                "p1": str(p1),
+                "p2": str(p2)
+            }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -680,6 +835,361 @@ class BlenderMCPServer:
             return self.cad_solve()
         except Exception as e:
             return {"success": False, "error": str(e)}
+    
+    def cad_create_sketch(self, workplane_index: int = 0):
+        """Create a new sketch on the specified workplane."""
+        try:
+            sk = getattr(bpy.context.scene, "sketcher", None)
+            if sk is None:
+                return {"success": False, "error": "CAD Sketcher not available"}
+            entities = getattr(sk, "entities", None)
+            if entities is None:
+                return {"success": False, "error": "CAD Sketcher entities API not available"}
+            
+            # Get the workplane
+            if not hasattr(entities, 'workplanes') or len(entities.workplanes) == 0:
+                return {"success": False, "error": "No workplanes available"}
+            
+            if workplane_index >= len(entities.workplanes):
+                return {"success": False, "error": f"Workplane index {workplane_index} out of range"}
+            
+            wp = entities.workplanes[workplane_index]
+            
+            # Create the sketch
+            sketch = entities.add_sketch(wp)
+            
+            # Activate the sketch
+            sk.active_sketch_i = sketch.slvs_index
+            
+            # Try to solve with context
+            try:
+                sk.solve(bpy.context)
+            except:
+                pass  # Solve might fail if empty, that's ok
+            
+            # Update view
+            for area in bpy.context.screen.areas:
+                if area.type == 'VIEW_3D':
+                    area.tag_redraw()
+            
+            return {
+                "success": True,
+                "sketch_id": sketch.slvs_index,
+                "sketch": str(sketch),
+                "workplane": str(wp)
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def cad_create_sketch(self, workplane_index: int = 0):
+        """Create a new sketch on the specified workplane."""
+        try:
+            sk = getattr(bpy.context.scene, "sketcher", None)
+            if sk is None:
+                return {"success": False, "error": "CAD Sketcher not available"}
+            entities = getattr(sk, "entities", None)
+            if entities is None:
+                return {"success": False, "error": "CAD Sketcher entities API not available"}
+            
+            # Get the workplane
+            if not hasattr(entities, 'workplanes') or len(entities.workplanes) == 0:
+                return {"success": False, "error": "No workplanes available"}
+            
+            if workplane_index >= len(entities.workplanes):
+                return {"success": False, "error": f"Workplane index {workplane_index} out of range"}
+            
+            wp = entities.workplanes[workplane_index]
+            
+            # Create the sketch
+            sketch = entities.add_sketch(wp)
+            
+            # Activate the sketch
+            sk.active_sketch_i = sketch.slvs_index
+            
+            # Try to solve with context
+            try:
+                sk.solve(bpy.context)
+            except:
+                pass  # Solve might fail if empty, that's ok
+            
+            # Update view
+            for area in bpy.context.screen.areas:
+                if area.type == 'VIEW_3D':
+                    area.tag_redraw()
+            
+            return {
+                "success": True,
+                "sketch_id": sketch.slvs_index,
+                "sketch": str(sketch),
+                "workplane": str(wp)
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def cad_nm_add_circle2d(self, sketch_i: int = -1, cx: float = 0.0, cy: float = 0.0, radius: float = 1.0):
+        """Add a 2D circle using CAD Sketcher's data API."""
+        try:
+            sk = getattr(bpy.context.scene, "sketcher", None)
+            if sk is None:
+                return {"success": False, "error": "CAD Sketcher not available"}
+            entities = getattr(sk, "entities", None)
+            if entities is None:
+                return {"success": False, "error": "CAD Sketcher entities API not available"}
+            
+            # Get the sketch object
+            sketch = self._get_sketch_by_index(sketch_i)
+            if sketch is None:
+                class SketchRef:
+                    def __init__(self, index):
+                        self.slvs_index = index
+                sketch = SketchRef(sketch_i)
+            
+            # For a circle, we need:
+            # 1. A normal (which defines the plane)
+            # 2. A center point
+            # 3. A radius
+            
+            # First create the center point
+            center_point = entities.add_point_2d((float(cx), float(cy)), sketch)
+            
+            # Create a normal for the circle (in 2D sketch plane)
+            normal = entities.add_normal_2d(sketch)
+            
+            # Now create the circle
+            circle = entities.add_circle(normal, center_point, float(radius), sketch)
+            
+            return {"success": True, "result": str(circle), "center": str(center_point), "normal": str(normal)}
+            
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def cad_create_sketch(self, workplane_index: int = 0):
+        """Create a new sketch on the specified workplane."""
+        try:
+            sk = getattr(bpy.context.scene, "sketcher", None)
+            if sk is None:
+                return {"success": False, "error": "CAD Sketcher not available"}
+            entities = getattr(sk, "entities", None)
+            if entities is None:
+                return {"success": False, "error": "CAD Sketcher entities API not available"}
+            
+            # Get the workplane
+            if not hasattr(entities, 'workplanes') or len(entities.workplanes) == 0:
+                return {"success": False, "error": "No workplanes available"}
+            
+            if workplane_index >= len(entities.workplanes):
+                return {"success": False, "error": f"Workplane index {workplane_index} out of range"}
+            
+            wp = entities.workplanes[workplane_index]
+            
+            # Create the sketch
+            sketch = entities.add_sketch(wp)
+            
+            # Activate the sketch
+            sk.active_sketch_i = sketch.slvs_index
+            
+            # Solve with context
+            try:
+                sk.solve(bpy.context)
+            except:
+                pass  # Solve might fail if empty, that's ok
+            
+            return {
+                "success": True,
+                "sketch_id": sketch.slvs_index,
+                "sketch": str(sketch),
+                "workplane": str(wp)
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def cad_nm_add_arc2d(self, sketch_i: int = -1, cx: float = 0.0, cy: float = 0.0, 
+                         sx: float = 1.0, sy: float = 0.0, ex: float = 0.0, ey: float = 1.0):
+        """Add a 2D arc using CAD Sketcher's data API."""
+        try:
+            sk = getattr(bpy.context.scene, "sketcher", None)
+            if sk is None:
+                return {"success": False, "error": "CAD Sketcher not available"}
+            entities = getattr(sk, "entities", None)
+            if entities is None:
+                return {"success": False, "error": "CAD Sketcher entities API not available"}
+            
+            # Get the sketch object
+            sketch = self._get_sketch_by_index(sketch_i)
+            if sketch is None:
+                class SketchRef:
+                    def __init__(self, index):
+                        self.slvs_index = index
+                sketch = SketchRef(sketch_i)
+            
+            # For an arc, we need:
+            # 1. A normal (plane)
+            # 2. A center point
+            # 3. A start point 
+            # 4. An end point
+            
+            # Create the points
+            center = entities.add_point_2d((float(cx), float(cy)), sketch)
+            start = entities.add_point_2d((float(sx), float(sy)), sketch)
+            end = entities.add_point_2d((float(ex), float(ey)), sketch)
+            
+            # Create a normal
+            normal = entities.add_normal_2d(sketch)
+            
+            # Create the arc
+            arc = entities.add_arc(normal, center, start, end, sketch)
+            
+            return {"success": True, "result": str(arc), "center": str(center), 
+                   "start": str(start), "end": str(end)}
+            
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def cad_get_capabilities(self):
+        """Get comprehensive CAD Sketcher capabilities."""
+        try:
+            sk = getattr(bpy.context.scene, "sketcher", None)
+            if sk is None:
+                return {"available": False, "message": "CAD Sketcher not initialized"}
+            
+            # Check available entity methods
+            entities = getattr(sk, "entities", None)
+            entity_methods = []
+            if entities:
+                for attr in dir(entities):
+                    if not attr.startswith('_') and callable(getattr(entities, attr)):
+                        if attr.startswith('add_'):
+                            entity_methods.append(attr[4:])  # Remove 'add_' prefix
+            
+            # Check available constraint methods  
+            constraints = getattr(sk, "constraints", None)
+            constraint_methods = []
+            if constraints:
+                for attr in dir(constraints):
+                    if not attr.startswith('_') and callable(getattr(constraints, attr)):
+                        if attr.startswith('add_'):
+                            constraint_methods.append(attr[4:])  # Remove 'add_' prefix
+            
+            # Check available operators
+            operators = {}
+            for op in ['add_point2d', 'add_line2d', 'add_circle2d', 'add_arc2d', 
+                      'add_rectangle', 'solve', 'add_sketch']:
+                operators[op] = hasattr(bpy.ops.view3d, f"slvs_{op}")
+            
+            return {
+                "available": True,
+                "entities_supported": entity_methods,
+                "constraints_supported": constraint_methods,
+                "operators_available": operators,
+                "has_solver": hasattr(sk, "solve"),
+                "version": getattr(sk, "version", "unknown")
+            }
+        except Exception as e:
+            return {"available": False, "error": str(e)}
+    
+    def cad_add_circle2d(self, sketch_i: int = -1, cx: float = 0.0, cy: float = 0.0, radius: float = 1.0, wait_for_input: bool = False):
+        """Add a 2D circle using operator."""
+        ctx = self._with_view3d()
+        kw = {
+            "sketch_i": int(sketch_i),
+            "wait_for_input": bool(wait_for_input)
+        }
+        try:
+            if ctx:
+                with ctx:
+                    # Try to find and call the circle operator
+                    if hasattr(bpy.ops.view3d, "slvs_add_circle2d"):
+                        return str(bpy.ops.view3d.slvs_add_circle2d('EXEC_DEFAULT', **kw))
+                    else:
+                        return {"error": "Circle operator not available"}
+            return {"error": "No VIEW_3D context available"}
+        except Exception as e:
+            return {"error": str(e), "kwargs": kw}
+    
+    def cad_add_arc2d(self, sketch_i: int = -1, cx: float = 0.0, cy: float = 0.0, 
+                      radius: float = 1.0, start_angle: float = 0.0, end_angle: float = 90.0, 
+                      wait_for_input: bool = False):
+        """Add a 2D arc using operator."""
+        ctx = self._with_view3d()
+        kw = {
+            "sketch_i": int(sketch_i),
+            "wait_for_input": bool(wait_for_input)
+        }
+        try:
+            if ctx:
+                with ctx:
+                    if hasattr(bpy.ops.view3d, "slvs_add_arc2d"):
+                        return str(bpy.ops.view3d.slvs_add_arc2d('EXEC_DEFAULT', **kw))
+                    else:
+                        return {"error": "Arc operator not available"}
+            return {"error": "No VIEW_3D context available"}
+        except Exception as e:
+            return {"error": str(e), "kwargs": kw}
+    
+    def cad_list_sketches(self):
+        """List all available sketches in the scene."""
+        try:
+            sk = getattr(bpy.context.scene, "sketcher", None)
+            if sk is None:
+                return {"available": False, "sketches": []}
+            
+            sketches = []
+            # Try to find sketches in the scene
+            entities = getattr(sk, "entities", None)
+            if entities:
+                # Look for sketch objects
+                for attr_name in dir(entities):
+                    if attr_name.startswith('_'):
+                        continue
+                    attr = getattr(entities, attr_name, None)
+                    if isinstance(attr, (list, tuple)):
+                        for idx, item in enumerate(attr):
+                            if hasattr(item, 'slvs_index'):
+                                sketch_info = {
+                                    "index": getattr(item, 'slvs_index', idx),
+                                    "name": getattr(item, 'name', f"Sketch_{idx}"),
+                                    "type": type(item).__name__
+                                }
+                                sketches.append(sketch_info)
+                                break  # Only get first sketch for now
+                        
+            return {
+                "available": True,
+                "sketches": sketches,
+                "active_sketch": getattr(sk, "active_sketch", None)
+            }
+        except Exception as e:
+            return {"available": False, "error": str(e)}
+    
+    def cad_add_constraint(self, constraint_type: str, entity1_id: int = -1, entity2_id: int = -1, 
+                          value: float = None, sketch_i: int = -1):
+        """Add a constraint between entities."""
+        ctx = self._with_view3d()
+        kw = {
+            "sketch_i": int(sketch_i),
+            "type": constraint_type
+        }
+        
+        # Map constraint types to operator parameters
+        if constraint_type in ["parallel", "perpendicular", "coincident", "horizontal", "vertical"]:
+            if entity1_id >= 0:
+                kw["entity1"] = entity1_id
+            if entity2_id >= 0:
+                kw["entity2"] = entity2_id
+        
+        if value is not None and constraint_type in ["distance", "angle", "radius"]:
+            kw["value"] = float(value)
+            
+        try:
+            if ctx:
+                with ctx:
+                    if hasattr(bpy.ops.view3d, "slvs_add_constraint"):
+                        return str(bpy.ops.view3d.slvs_add_constraint('EXEC_DEFAULT', **kw))
+                    else:
+                        return {"error": "Constraint operator not available"}
+            return {"error": "No VIEW_3D context available"}
+        except Exception as e:
+            return {"error": str(e), "kwargs": kw}
     
     
 

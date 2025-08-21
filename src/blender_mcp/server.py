@@ -1012,6 +1012,46 @@ def cad_nm_add_point2d(ctx: Context, sketch_i: int = -1, x: float = 0.0, y: floa
         logger.error(f"Error in cad_nm_add_point2d: {str(e)}")
         return f"Error in cad_nm_add_point2d: {str(e)}"
 @mcp.tool()
+def cad_nm_add_line2d(ctx: Context, sketch_i: int = -1, x1: float = 0.0, y1: float = 0.0, 
+                      x2: float = 0.2, y2: float = 0.0, p1_index: int = None, p2_index: int = None) -> str:
+    """Add a 2D line using CAD Sketcher's data API.
+    Can either use existing points (by index) or create new ones (by coordinates).
+    """
+    try:
+        blender = get_blender_connection()
+        payload = {
+            "sketch_i": sketch_i, 
+            "x1": x1, "y1": y1, 
+            "x2": x2, "y2": y2
+        }
+        if p1_index is not None:
+            payload["p1_index"] = p1_index
+        if p2_index is not None:
+            payload["p2_index"] = p2_index
+        result = blender.send_command("cad_nm_add_line2d", payload)
+        return json.dumps(result)
+    except Exception as e:
+        logger.error(f"Error in cad_nm_add_line2d: {str(e)}")
+        return f"Error in cad_nm_add_line2d: {str(e)}"
+
+@mcp.tool()
+def cad_nm_add_circle2d(ctx: Context, sketch_i: int = -1, cx: float = 0.0, cy: float = 0.0, radius: float = 1.0) -> str:
+    """Add a 2D circle using CAD Sketcher's data API."""
+    try:
+        blender = get_blender_connection()
+        payload = {
+            "sketch_i": sketch_i,
+            "cx": cx,
+            "cy": cy,
+            "radius": radius
+        }
+        result = blender.send_command("cad_nm_add_circle2d", payload)
+        return json.dumps(result)
+    except Exception as e:
+        logger.error(f"Error in cad_nm_add_circle2d: {str(e)}")
+        return f"Error in cad_nm_add_circle2d: {str(e)}"
+
+@mcp.tool()
 def cad_nm_solve(ctx: Context) -> str:
     try:
         blender = get_blender_connection()
@@ -1020,6 +1060,46 @@ def cad_nm_solve(ctx: Context) -> str:
     except Exception as e:
         logger.error(f"Error in cad_nm_solve: {str(e)}")
         return f"Error in cad_nm_solve: {str(e)}"
+
+@mcp.tool()
+def cad_nm_add_line2d(ctx: Context, sketch_i: int = -1, x1: float = 0.0, y1: float = 0.0, 
+                      x2: float = 0.2, y2: float = 0.0, p1_index: int = None, p2_index: int = None) -> str:
+    """Add a 2D line using CAD Sketcher's data API.
+    Can either use existing points (by index) or create new ones (by coordinates).
+    """
+    try:
+        blender = get_blender_connection()
+        payload = {
+            "sketch_i": sketch_i, 
+            "x1": x1, "y1": y1, 
+            "x2": x2, "y2": y2
+        }
+        if p1_index is not None:
+            payload["p1_index"] = p1_index
+        if p2_index is not None:
+            payload["p2_index"] = p2_index
+        result = blender.send_command("cad_nm_add_line2d", payload)
+        return json.dumps(result)
+    except Exception as e:
+        logger.error(f"Error in cad_nm_add_line2d: {str(e)}")
+        return f"Error in cad_nm_add_line2d: {str(e)}"
+
+@mcp.tool()
+def cad_nm_add_circle2d(ctx: Context, sketch_i: int = -1, cx: float = 0.0, cy: float = 0.0, radius: float = 1.0) -> str:
+    """Add a 2D circle using CAD Sketcher's data API."""
+    try:
+        blender = get_blender_connection()
+        payload = {
+            "sketch_i": sketch_i,
+            "cx": cx,
+            "cy": cy,
+            "radius": radius
+        }
+        result = blender.send_command("cad_nm_add_circle2d", payload)
+        return json.dumps(result)
+    except Exception as e:
+        logger.error(f"Error in cad_nm_add_circle2d: {str(e)}")
+        return f"Error in cad_nm_add_circle2d: {str(e)}"
 
 # Main execution
 
